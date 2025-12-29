@@ -1,5 +1,7 @@
+from typing import Optional
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import RBFInterpolator
 
 
 def generate_tissue_patch(
@@ -17,12 +19,14 @@ def generate_tissue_patch(
     y = np.linspace(0, size, resolution)
     X, Y = np.meshgrid(x, y)
 
-    Xn = X / size
-    Yn = Y / size
+    ## Patch 1
+    # Xn = X / size
+    # Yn = Y / size
     # Z = height_scale * np.sin(4 * np.pi * Xn / size) * np.sin(4 * np.pi * Yn / size)
 
-    Xn = X / (0.10/3.5)
-    Yn = Y / (0.10/3.5)
+    ## Patch 2
+    Xn = X / (0.10 / 3.5)
+    Yn = Y / (0.10 / 3.5)
     Z = height_scale * np.sin(2 * Xn * Yn) * np.cos(3 * Yn)
 
     P = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
@@ -54,12 +58,93 @@ def apply_local_deformation(
     P_def = P + U_gt
     return P_def, U_gt
 
+
+class FullRBF:
+    def __init__(self, sigma=0.01):
+        self.sigma = sigma
+        self.rbf_X: Optional[RBFInterpolator] = None
+        self.rbf_Y: Optional[RBFInterpolator] = None
+        self.rbf_Z: Optional[RBFInterpolator] = None
+
+    def fit(self, fitting_pts, dX, dY, dZ):
+        dX = dX.ravel()
+        dY = dY.ravel()
+        dZ = dZ.ravel()
+
+        # self.rbf_X = RBFInterpolator(
+        #     fitting_pts, dX, kernel="gaussian", epsilon=self.sigma
+        # )
+        # self.rbf_Y = RBFInterpolator(
+        #     fitting_pts, dY, kernel="gaussian", epsilon=self.sigma
+        # )
+        self.rbf_Z = RBFInterpolator(
+            fitting_pts[:, :2], dZ, kernel="gaussian", epsilon=1.0/self.sigma
+        )
+
+        dz_est = self.rbf_Z(fitting_pts[:, :2])
+        mse = np.square(dZ - dz_est).sum()
+        print(f"sample estima {dz_est[:5]}")
+        print(f"sample actual {dZ[:5]}")
+        print(f"RBF fit completed. Training MSE (Z): {mse:.6e}")
+
+
+    def evaluate(self, P):
+        assert self.rbf_Z is not None
+        # assert (
+        #     self.rbf_X is not None and self.rbf_Y is not None and self.rbf_Z is not None
+        # )
+        # DX = self.rbf_X(P)
+        # DY = self.rbf_Y(P)
+        DZ = self.rbf_Z(P[:, :2])
+
+        DX = np.zeros_like(DZ)
+        DY = np.zeros_like(DZ)
+        displacement = np.stack([DX, DY, DZ], axis=1)
+
+        return displacement
+
+
 if __name__ == "__main__":
-    resolution = 200
+    resolution = 100
     P = generate_tissue_patch(resolution=resolution)
-    P_def1, U_gt1 = apply_local_deformation(P, center=(0.05, 0.05), amplitude=0.006, sigma=0.015)
-    P_def2, U_gt2 = apply_local_deformation(P, center=(0.07, 0.07), amplitude=0.004, sigma=0.018)
-    P_def = P + (U_gt1 + U_gt2) 
+    P_def1, U_gt1 = apply_local_deformation(
+        P, center=(0.05, 0.05), amplitude=0.006, sigma=0.015
+    )
+    P_def2, U_gt2 = apply_local_deformation(
+        P, center=(0.07, 0.07), amplitude=0.004, sigma=0.018
+    )
+    total_deformation = U_gt1 + U_gt2
+    P_def = P + total_deformation
+
+    # Generate observed displacements from smaller patch
+    center = (0.05, 0.05)
+    patch_size = 0.03
+    mask = (
+        (P[:, 0] >= center[0] - patch_size / 2)
+        & (P[:, 0] <= center[0] + patch_size / 2)
+        & (P[:, 1] >= center[1] - patch_size / 2)
+        & (P[:, 1] <= center[1] + patch_size / 2)
+    )
+    P_local = P[mask]
+
+    print(f"Total points: {P.shape}")
+    print(f"Using {P_local.shape} points for RBF fitting.")
+
+    ## Fit RBF to observed displacements
+    displacement_field = FullRBF(sigma=0.01)
+    displacement_field.fit(
+        fitting_pts=P_local,
+        dX=total_deformation[mask][:, 0],
+        dY=total_deformation[mask][:, 1],
+        dZ=total_deformation[mask][:, 2],
+    )
+
+    displacement = displacement_field.evaluate(P)
+
+    P_def_rbf = P + displacement
+
+    mse_z = np.square(total_deformation[:,2] - displacement[:,2]).mean()
+    print(f"Test MSE (Z): {mse_z:.6e}")
 
     # from deformation_lib.visualization.matplotlib_visualization import (
     #     visualize_surfaces_with_matplotlib,
@@ -69,4 +154,6 @@ if __name__ == "__main__":
     from deformation_lib.visualization.vedo_visualization import (
         visualize_with_vedo_plot,
     )
-    visualize_with_vedo_plot(P, P_def, resolution)
+
+    # visualize_with_vedo_plot(P, P_def, resolution)
+    visualize_with_vedo_plot(P, P_def_rbf, resolution)
