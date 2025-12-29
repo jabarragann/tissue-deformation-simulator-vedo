@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from deformation_lib.utils import reshape_to_grid
+from vedo import show
+from vedo.pyplot import plot
+from vedo import Rectangle
 
 
 def mesh_from_grid(X, Y, Z):
@@ -27,6 +30,7 @@ def mesh_from_grid(X, Y, Z):
             faces.append([p1, p3, p2])
 
     return Mesh([pts, faces])
+
 
 def visualize_with_vedo_mesh(P, P_def, resolution, subsample=2, z_scale=3.0):
     from vedo import dataurl, sin, cos, log, show, Text2D
@@ -59,6 +63,7 @@ def visualize_with_vedo_mesh(P, P_def, resolution, subsample=2, z_scale=3.0):
         sharecam=False,
     ).close()
 
+
 def make_surface_function(X, Y, Z):
     """
     Create a callable f(x,y) from grid data for vedo.plot
@@ -81,9 +86,6 @@ def make_surface_function(X, Y, Z):
 
 
 def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
-    from vedo import show, Text2D
-    from vedo.pyplot import plot
-
     # Reshape grids
     X, Y, Z = reshape_to_grid(P, resolution)
     _, _, Z_def = reshape_to_grid(P_def, resolution)
@@ -101,11 +103,13 @@ def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
     # Axis limits
     xlim = [X.min(), X.max()]
     ylim = [Y.min(), Y.max()]
+    Zlim = [min(Z_vis.min(), Z_def_vis.min()), max(Z_vis.max(), Z_def_vis.max())]
 
     s1 = plot(
         f_orig,
         xlim=xlim,
         ylim=ylim,
+        zlim=Zlim,
         c="viridis",
     )
 
@@ -113,6 +117,7 @@ def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
         f_def,
         xlim=xlim,
         ylim=ylim,
+        zlim=Zlim,
         c="viridis",
     )
 
@@ -124,14 +129,43 @@ def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
         zlevels=12,
     )
 
+    # Fourth plot: deformed surface with control area rectangle
+    s4 = plot(f_def, xlim=xlim, ylim=ylim, c="lightgray")
+
+    # Define rectangle coordinates centered in the patch
+    control_area_size = 0.03
+    x_center = (X.min() + X.max()) / 2
+    y_center = (Y.min() + Y.max()) / 2
+    half_size = control_area_size / 2
+    p1 = (x_center - half_size, y_center - half_size)
+    p2 = (x_center + half_size, y_center + half_size)
+    rect = Rectangle(p1=p1, p2=p2, c="red", alpha=0.3, res=2)
+
+    rect.pos([rect.x(), rect.y(), 0.03])
+
+    s4 += rect
+
     show(
         [
             (s1, "Original Surface"),
             (s2, "Deformed Surface"),
             (s3, "Displacement Field"),
+            (s4, "Deformed + Control Area"),
         ],
-        N=3,
-        sharecam=True,
+        N=4,
+        sharecam=False,
         axes=0,
-        pos=(1920,0)
+        pos=(1920, 0),
     ).close()
+
+    # show(
+    #     [
+    #         (s1, "Original Surface"),
+    #         (s2, "Deformed Surface"),
+    #         (s3, "Displacement Field"),
+    #     ],
+    #     N=3,
+    #     sharecam=True,
+    #     axes=0,
+    #     pos=(1920,0)
+    # ).close()

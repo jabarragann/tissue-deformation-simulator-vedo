@@ -17,7 +17,13 @@ def generate_tissue_patch(
     y = np.linspace(0, size, resolution)
     X, Y = np.meshgrid(x, y)
 
-    Z = height_scale * np.sin(4 * np.pi * X / size) * np.sin(4 * np.pi * Y / size)
+    Xn = X / size
+    Yn = Y / size
+    # Z = height_scale * np.sin(4 * np.pi * Xn / size) * np.sin(4 * np.pi * Yn / size)
+
+    Xn = X / (0.10/3.5)
+    Yn = Y / (0.10/3.5)
+    Z = height_scale * np.sin(2 * Xn * Yn) * np.cos(3 * Yn)
 
     P = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
     return P
@@ -51,7 +57,9 @@ def apply_local_deformation(
 if __name__ == "__main__":
     resolution = 200
     P = generate_tissue_patch(resolution=resolution)
-    P_def, _ = apply_local_deformation(P)
+    P_def1, U_gt1 = apply_local_deformation(P, center=(0.05, 0.05), amplitude=0.006, sigma=0.015)
+    P_def2, U_gt2 = apply_local_deformation(P, center=(0.07, 0.07), amplitude=0.004, sigma=0.018)
+    P_def = P + (U_gt1 + U_gt2) 
 
     # from deformation_lib.visualization.matplotlib_visualization import (
     #     visualize_surfaces_with_matplotlib,
