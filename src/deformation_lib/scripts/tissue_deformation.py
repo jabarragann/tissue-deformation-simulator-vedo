@@ -78,7 +78,7 @@ class FullRBF:
         #     fitting_pts, dY, kernel="gaussian", epsilon=self.sigma
         # )
         self.rbf_Z = RBFInterpolator(
-            fitting_pts[:, :2], dZ, kernel="gaussian", epsilon=1.0/self.sigma
+            fitting_pts[:, :2], dZ, kernel="gaussian", epsilon=1.0 / self.sigma
         )
 
         dz_est = self.rbf_Z(fitting_pts[:, :2])
@@ -86,7 +86,6 @@ class FullRBF:
         print(f"sample estima {dz_est[:5]}")
         print(f"sample actual {dZ[:5]}")
         print(f"RBF fit completed. Training MSE (Z): {mse:.6e}")
-
 
     def evaluate(self, P):
         assert self.rbf_Z is not None
@@ -131,7 +130,7 @@ if __name__ == "__main__":
     print(f"Using {P_local.shape} points for RBF fitting.")
 
     ## Fit RBF to observed displacements
-    displacement_field = FullRBF(sigma=0.01)
+    displacement_field = FullRBF(sigma=0.015)
     displacement_field.fit(
         fitting_pts=P_local,
         dX=deformation_gt[mask][:, 0],
@@ -143,7 +142,7 @@ if __name__ == "__main__":
 
     P_def_rbf = P + deformation_est
 
-    mse_z = np.square(deformation_gt[:,2] - deformation_est[:,2]).mean()
+    mse_z = np.square(deformation_gt[:, 2] - deformation_est[:, 2]).mean()
     print(f"Test MSE (Z): {mse_z:.6e}")
 
     # from deformation_lib.visualization.matplotlib_visualization import (
@@ -155,5 +154,5 @@ if __name__ == "__main__":
         visualize_with_vedo_plot,
     )
 
-    # visualize_with_vedo_plot(P, P_def, resolution)
+    # visualize_with_vedo_plot_old(P, deformation_gt, deformation_est, resolution)
     visualize_with_vedo_plot(P, deformation_gt, deformation_est, resolution)
