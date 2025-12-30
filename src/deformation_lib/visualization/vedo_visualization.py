@@ -199,7 +199,7 @@ def visualize_with_vedo_plot(P, deformation_gt, deformation_est, resolution):
         cmap="coolwarm",
         zlevels=12,
         show_scalarbar=True,
-        scalarbar_title="Displacement [m]",
+        scalarbar_title="Displacement [mm]",
     )
     fig.add_object(surf_gt_plot)
 
@@ -210,7 +210,7 @@ def visualize_with_vedo_plot(P, deformation_gt, deformation_est, resolution):
             cmap="coolwarm",
             zlevels=12,
             show_scalarbar=True,
-            scalarbar_title="Displacement [m]",
+            scalarbar_title="Displacement [mm]",
         )
     )
 
@@ -221,7 +221,7 @@ def visualize_with_vedo_plot(P, deformation_gt, deformation_est, resolution):
             cmap="coolwarm",
             zlevels=12,
             show_scalarbar=True,
-            scalarbar_title="Error [m]",
+            scalarbar_title="Error [mm]",
         )
     )
 
