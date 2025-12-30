@@ -113,8 +113,8 @@ if __name__ == "__main__":
     P_def2, U_gt2 = apply_local_deformation(
         P, center=(0.07, 0.07), amplitude=0.004, sigma=0.018
     )
-    total_deformation = U_gt1 + U_gt2
-    P_def = P + total_deformation
+    deformation_gt = U_gt1 + U_gt2
+    P_def = P + deformation_gt
 
     # Generate observed displacements from smaller patch
     center = (0.05, 0.05)
@@ -134,16 +134,16 @@ if __name__ == "__main__":
     displacement_field = FullRBF(sigma=0.01)
     displacement_field.fit(
         fitting_pts=P_local,
-        dX=total_deformation[mask][:, 0],
-        dY=total_deformation[mask][:, 1],
-        dZ=total_deformation[mask][:, 2],
+        dX=deformation_gt[mask][:, 0],
+        dY=deformation_gt[mask][:, 1],
+        dZ=deformation_gt[mask][:, 2],
     )
 
-    displacement = displacement_field.evaluate(P)
+    deformation_est = displacement_field.evaluate(P)
 
-    P_def_rbf = P + displacement
+    P_def_rbf = P + deformation_est
 
-    mse_z = np.square(total_deformation[:,2] - displacement[:,2]).mean()
+    mse_z = np.square(deformation_gt[:,2] - deformation_est[:,2]).mean()
     print(f"Test MSE (Z): {mse_z:.6e}")
 
     # from deformation_lib.visualization.matplotlib_visualization import (
@@ -156,4 +156,4 @@ if __name__ == "__main__":
     )
 
     # visualize_with_vedo_plot(P, P_def, resolution)
-    visualize_with_vedo_plot(P, P_def_rbf, resolution)
+    visualize_with_vedo_plot(P, deformation_gt, deformation_est, resolution)

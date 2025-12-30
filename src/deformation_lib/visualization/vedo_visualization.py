@@ -85,20 +85,40 @@ def make_surface_function(X, Y, Z):
     return f
 
 
-def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
+def visualize_with_vedo_plot(
+    P, deformation_gt, deformation_est, resolution, z_exaggeration=1.0
+):
+    P_def_gt = P + deformation_gt
+    P_def_est = P + deformation_est
+
+    deformation_error = deformation_est - deformation_gt
+
     # Reshape grids
     X, Y, Z = reshape_to_grid(P, resolution)
-    _, _, Z_def = reshape_to_grid(P_def, resolution)
-    disp = Z_def - Z
+    _, _, Z_def = reshape_to_grid(P_def_gt, resolution)
+    dX, dY, dZ = reshape_to_grid(deformation_gt, resolution)
+    dX_est, dY_est, dZ_est = reshape_to_grid(deformation_est, resolution)
+    dX_err, dY_err, dZ_err = reshape_to_grid(deformation_error, resolution)
+
+    # dx = np.zeros_like(Z)
+    # dy = np.zeros_like(Z)
+    # deformation_field = np.stack([dx.ravel(), dy.ravel(), deformation_gt[:, 2]], axis=1)
+
+    # disp = Z_def - Z
+    # disp_gt = deformation_gt[:,2]
+    # disp_est = deformation_est[:,2]
+    # disp_error = disp_est - disp_gt
 
     # Optional Z exaggeration (visual only)
     Z_vis = Z * z_exaggeration
     Z_def_vis = Z_def * z_exaggeration
 
     # Build callable surfaces
-    f_orig = make_surface_function(X, Y, Z_vis)
-    f_def = make_surface_function(X, Y, Z_def_vis)
-    f_disp = make_surface_function(X, Y, disp)
+    f_orig = make_surface_function(X, Y, Z * z_exaggeration)
+    f_def = make_surface_function(X, Y, Z_def * z_exaggeration)
+    f_disp_gt = make_surface_function(X, Y, dZ * z_exaggeration)
+    f_disp_est = make_surface_function(X, Y, dZ_est * z_exaggeration)
+    f_disp_error = make_surface_function(X, Y, dZ_err * z_exaggeration)
 
     # Axis limits
     xlim = [X.min(), X.max()]
@@ -121,16 +141,8 @@ def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
         c="viridis",
     )
 
-    s3 = plot(
-        f_disp,
-        xlim=xlim,
-        ylim=ylim,
-        c="coolwarm",
-        zlevels=12,
-    )
-
-    # Fourth plot: deformed surface with control area rectangle
-    s4 = plot(f_def, xlim=xlim, ylim=ylim, c="lightgray")
+    # Third plot: deformed surface with control area rectangle
+    s3 = plot(f_def, xlim=xlim, ylim=ylim, c="lightgray")
 
     # Define rectangle coordinates centered in the patch
     control_area_size = 0.03
@@ -143,16 +155,43 @@ def visualize_with_vedo_plot(P, P_def, resolution, z_exaggeration=2.0):
 
     rect.pos([rect.x(), rect.y(), 0.03])
 
-    s4 += rect
+    s3 += rect
+
+    ## Displacement fields
+    s4 = plot(
+        f_disp_gt,
+        xlim=xlim,
+        ylim=ylim,
+        c="coolwarm",
+        zlevels=12,
+    )
+
+    from vedo import Line, ScalarBar3D
+
+    line = Line((1, -1), (1, 1))
+    line.cmap("coolwarm", [1000*dZ.min()*z_exaggeration, 1000*dZ.max()*z_exaggeration])
+    scbar = ScalarBar3D(
+        line,
+        title="Displacement [mm]",
+        label_rotation=90,
+        c="black",
+    )
+    scbar = scbar.clone2d([-0.95,-0.7], size=0.11, ontop=True)
+
+    s5 = plot(f_disp_est, xlim=xlim, ylim=ylim, c="coolwarm", zlevels=12)
+
+    s6 = plot(f_disp_error, xlim=xlim, ylim=ylim, c="coolwarm", zlevels=12)
 
     show(
         [
             (s1, "Original Surface"),
             (s2, "Deformed Surface"),
-            (s3, "Displacement Field"),
-            (s4, "Deformed + Control Area"),
+            (s3, "Deformed + Control Area"),
+            ((s4,scbar), "Displacement Field"),
+            (s5, "Estimated Displacement Field"),
+            (s6, "Displacement Error Field"),
         ],
-        N=4,
+        N=6,
         sharecam=False,
         axes=0,
         pos=(1920, 0),
