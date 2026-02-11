@@ -1,6 +1,6 @@
 # Deformation simulator
 
-Vedo base deformation simulator.
+Vedo base deformation simulator. (pose_est env)
 
 Main script
 ```
@@ -8,6 +8,9 @@ python src/deformation_lib/scripts/tissue_deformation.py
 or
 python -m deformation_lib.scripts.tissue_deformation
 ```
+## TODO
+- [ ] Apply RBF to the whole mesh.
+
 
 ## Resources
 
