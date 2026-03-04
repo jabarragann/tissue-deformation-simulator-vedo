@@ -50,106 +50,6 @@ def load_yaml_camera_calibration(yaml_file: Path) -> CameraCalibration:
     return CameraCalibration(mtx, dist, rectification_matrix, projection_matrix)
 
 
-def detect_colored_pins_with_hough_circles(frame):
-    ### DIDN'T WORK - REMOVE LATER
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    frame_gray = cv2.medianBlur(frame_gray, 5)
-
-    # print(frame_gray.shape, frame_gray.dtype)
-
-    circles = cv2.HoughCircles(
-        frame_gray,
-        cv2.HOUGH_GRADIENT,
-        1,
-        20,
-        param1=50,
-        param2=30,
-        minRadius=0,
-        maxRadius=80,
-    )
-    return circles
-
-
-def detect_colored_pins_with_hsv_filtering(frame):
-    ### DIDN'T WORK - REMOVE LATER
-    """
-    HSV segmentation + contour extraction.
-    Returns list of [x, y, radius].
-    """
-
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    # ---- Define hue windows (tight around your measurements) ----
-    # Format: (h_min, h_max)
-
-    hue_ranges = [
-        (125, 145),  # purple (center ~135)
-        (70, 95),  # green (~84)
-        (20, 35),  # yellow (~25)
-        (0, 5),  # red low (~7 but avoid background 6-9)
-        (170, 180),  # red high (~176)
-    ]
-
-    min_sat = 70  # removes brown/dark areas
-    sat_ranges = [
-        (50, 255),  # purple
-        (50, 255),  # green
-        (min_sat, 255),  # yellow
-        (min_sat, 255),  # red low
-        (min_sat, 255),  # red high
-    ]
-
-    min_value = 110  # critical threshold
-    value_ranges = [
-        (70, 255),  # purple
-        (70, 255),  # green
-        (min_value, 255),  # yellow
-        (min_value, 255),  # red low
-        (min_value, 255),  # red high
-    ]
-
-    masks = []
-
-    for hue_range, value_range, sat_range in zip(hue_ranges, value_ranges, sat_ranges):
-        lower = np.array([hue_range[0], sat_range[0], value_range[0]])
-        upper = np.array([hue_range[1], sat_range[1], value_range[1]])
-        mask = cv2.inRange(hsv, lower, upper)
-        masks.append(mask)
-
-    # Combine masks
-    mask = np.zeros_like(masks[0])
-    for m in masks:
-        mask = cv2.bitwise_or(mask, m)
-
-    # ---- Morphological cleanup ----
-    kernel = np.ones((5, 5), np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-    # ---- Find contours ----
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    detections = []
-
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-
-        # Tune this depending on image scale
-        if area < 150:
-            continue
-
-        (x, y), radius = cv2.minEnclosingCircle(cnt)
-
-        detections.append([int(x), int(y), int(radius)])
-
-    # Optional: sort left-to-right for stable ordering
-    detections = sorted(detections, key=lambda c: c[0])
-    detections = np.array(detections)
-    detections = np.expand_dims(detections, axis=0)
-
-    return detections
-
-
 def play_video(
     video_path: Path, camera_name: str, camera_calibration: CameraCalibration, start_frame: int = 0
 ):
@@ -226,30 +126,7 @@ def play_video(
                 tracker_initialized = True
                 print(f"Tracker initialized with bbox: {bbox}. Status: {ok}")
 
-            # bbox = cv2.selectROI(opencv_window_name, frame, False)
-            # ok = tracker.init(frame, bbox)
-            # tracker_initialized = True
-            # print(f"Tracker initialized with bbox: {bbox}. Status: {ok}")
 
-        ## Detect circles in the frame
-
-        ##Method 1: Hough Circles
-        # circles = detect_colored_pins_with_hough_circles(frame)
-
-        ##Method 2: HSV segmentation + contour extraction
-        # circles = detect_colored_pins_with_hsv_filtering(frame)
-
-        ## Draw
-        # if circles is not None:
-        #     print(f"Found circles:  {circles.shape}")
-
-        #     circles: npt.NDArray[np.uint16] = np.uint16(np.around(circles))
-        #     for i in circles[0, :]:
-        #         center: tuple[int, int] = (i[0], i[1])
-        #         radius: int = i[2]
-        #         cv2.circle(frame, center, radius, (0, 255, 0), 2)
-        # else:
-        #     print("No circles detected")
 
         ## Method3: Opencv tracker
         for tracker, bbox in zip(trackers, bboxes):
