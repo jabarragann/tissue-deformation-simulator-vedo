@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from typing import Any, cast
 import cv2
 import numpy as np
 import numpy.typing as npt
@@ -21,7 +22,7 @@ COLORS = [
 ]
 
 
-def print_pixel_colors(event, x, y, flags, param):
+def print_pixel_colors(event: int, x: int, y: int, flags: int, param: dict[str, Any]):
     if event == cv2.EVENT_LBUTTONDOWN:
         # Get current frame
         current_frame = param["frame"]
@@ -29,8 +30,11 @@ def print_pixel_colors(event, x, y, flags, param):
         bgr = current_frame[y, x].tolist()
         rgb = [bgr[2], bgr[1], bgr[0]]
         # Convert to HSV
-        hsv_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)
+        hsv_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV) # type: ignore
+        hsv_frame = cast(npt.NDArray[np.uint8], hsv_frame)
+
         hsv = hsv_frame[y, x].tolist()
+
         print(
             f"At (x={x:04d}, y={y:04d}): RGB={[f'{v:03d}' for v in rgb]}, HSV={[f'{v:03d}' for v in hsv]}"
         )
@@ -100,6 +104,7 @@ def initialize_trackers(
     else:
         for _ in range(5):
             bbox = cv2.selectROI(opencv_window_name, frame, True)
+            bbox = cast(tuple[int, int, int, int], bbox)
             bboxes.append(bbox)
 
         # save bounded boxes in yaml
@@ -107,9 +112,9 @@ def initialize_trackers(
             json.dump(bboxes, f, indent=4)
 
     for bbox in bboxes:
-        tracker = cv2.TrackerCSRT_create()
-        ok = tracker.init(frame, bbox)
-        trackers.append(tracker)
+        tracker = cv2.TrackerCSRT_create() # type: ignore
+        ok = tracker.init(frame, bbox) # type: ignore
+        trackers.append(tracker) # type: ignore
         print(f"Tracker initialized with bbox: {bbox}. Status: {ok}")
 
     return bboxes, trackers
@@ -149,6 +154,7 @@ def play_video(
         ret, frame_raw = cap.read()
 
         frame = cv2.remap(frame_raw, map1, map2, cv2.INTER_LINEAR)
+        frame = cast(npt.NDArray[np.uint8], frame)
 
         if not ret:
             print("Reached end of video or cannot fetch the frame.")
@@ -194,7 +200,7 @@ def play_video(
 
         if key == ord("p"):  # Press 'p' to toggle pause/play
             cv2.setMouseCallback(
-                opencv_window_name, print_pixel_colors, {"frame": frame}
+                opencv_window_name, print_pixel_colors, {"frame": frame} # type: ignore
             )
 
             paused = True
@@ -265,7 +271,7 @@ def play_stereo_video(
         cv2.CV_16SC2,
     )
 
-    all_3d_points = []
+    all_3d_points: list[npt.NDArray[np.float32]] = []
     while True:
         ret_left, left_frame_raw = left_cap.read()
         ret_right, right_frame_raw = right_cap.read()
@@ -278,6 +284,8 @@ def play_stereo_video(
         right_frame = cv2.remap(
             right_frame_raw, right_map1, right_map2, cv2.INTER_LINEAR
         )
+        left_frame = cast(npt.NDArray[np.uint8], left_frame)
+        right_frame = cast(npt.NDArray[np.uint8], right_frame)
 
         # Get current frame number
         frame_idx = (
@@ -305,10 +313,7 @@ def play_stereo_video(
             for idx, tracker in enumerate(trackers):
                 ok, bbox = tracker.update(frame)
                 if ok:
-                    # p1 = (int(bbox[0]), int(bbox[1]))
-                    # p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-                    # cv2.rectangle(frame, p1, p2, COLORS[idx], 2, 1)
-                    bboxes.append(bbox)
+                    bboxes.append(bbox) # type: ignore
                 else:
                     print(f"{camera_name} Tracker {idx} failed to update with bbox: {bbox}")
         ## Draw boxes
@@ -319,8 +324,8 @@ def play_stereo_video(
                 cv2.rectangle(frame, p1, p2, COLORS[idx], 2, 1)
 
         ## Get triangulation_points from bounding boxes
-        left_points = []
-        right_points = []
+        left_points: list[list[float]] = []
+        right_points: list[list[float]] = []
         for left_bbox, right_bbox in zip(left_bboxes, right_bboxes):
             left_center = [
                 left_bbox[0] + left_bbox[2] / 2,
@@ -335,21 +340,21 @@ def play_stereo_video(
             right_center[1] = left_center[1]  # Assuming correct rectification
             right_points.append(right_center)
 
-        left_points = np.array(left_points)
-        right_points = np.array(right_points)
+        left_points_np: npt.NDArray[np.float32] = np.array(left_points, dtype=np.float32)
+        right_points_np: npt.NDArray[np.float32] = np.array(right_points, dtype=np.float32)
 
         # Triangulate with OpenCV
         points3d = cv2.triangulatePoints(
             left_calibration.projection_matrix,
             right_calibration.projection_matrix,
-            left_points.T,
-            right_points.T,
+            left_points_np.T,
+            right_points_np.T,
         )
         points3d = points3d / points3d[3, :]
         points3d = points3d[:3, :].T
 
         # Triangulate with baseline
-        disparity = left_points[:, 0] - right_points[:, 0]
+        disparity = left_points_np[:, 0] - right_points_np[:, 0]
         baseline = -(
             right_calibration.projection_matrix[0, 3]
             / right_calibration.projection_matrix[0, 0]
@@ -364,8 +369,8 @@ def play_stereo_video(
         # Depth
         Z = fx * baseline / disparity
         # Back-project to 3D
-        X = (left_points[:, 0] - cx) * Z / fx
-        Y = (left_points[:, 1] - cy) * Z / fy
+        X = (left_points_np[:, 0] - cx) * Z / fx
+        Y = (left_points_np[:, 1] - cy) * Z / fy
 
         points3d_2 = np.stack((X, Y, Z), axis=1)
         if points3d_2.shape[0] != 5:
@@ -413,9 +418,9 @@ def play_stereo_video(
     left_cap.release()
     cv2.destroyAllWindows()
 
-    all_3d_points = np.array(all_3d_points, dtype=np.float32)
+    all_3d_points_np = np.array(all_3d_points, dtype=np.float32)
     with open(output_path / "3d_points.npz", "wb") as f:
-        np.savez(f, all_3d_points)
+        np.savez(f, all_3d_points_np)
 
 
 if __name__ == "__main__":
