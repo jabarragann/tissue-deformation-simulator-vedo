@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import cv2
 import numpy as np
 import numpy.typing as npt
+import yaml
 
 opencv_window_name = "Video playback"
 
@@ -22,7 +24,34 @@ def print_pixel_colors(event, x, y, flags, param):
         )
 
 
+@dataclass
+class CameraCalibration:
+    mtx: npt.NDArray[np.float32]
+    dist: npt.NDArray[np.float32]
+    rectification_matrix: npt.NDArray[np.float32]
+    projection_matrix: npt.NDArray[np.float32]
+
+
+def load_yaml_camera_calibration(yaml_file: Path) -> CameraCalibration:
+    with open(yaml_file, "r") as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+
+    mtx = np.array(data["camera_matrix"]["data"], dtype=np.float32).reshape(3, 3)
+    dist = np.array(data["distortion_coefficients"]["data"], dtype=np.float32).reshape(
+        5, 1
+    )
+    rectification_matrix = np.array(
+        data["rectification_matrix"]["data"], dtype=np.float32
+    ).reshape(3, 3)
+    projection_matrix = np.array(
+        data["projection_matrix"]["data"], dtype=np.float32
+    ).reshape(3, 4)
+
+    return CameraCalibration(mtx, dist, rectification_matrix, projection_matrix)
+
+
 def detect_colored_pins_with_hough_circles(frame):
+    ### DIDN'T WORK - REMOVE LATER
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     frame_gray = cv2.medianBlur(frame_gray, 5)
 
@@ -42,6 +71,7 @@ def detect_colored_pins_with_hough_circles(frame):
 
 
 def detect_colored_pins_with_hsv_filtering(frame):
+    ### DIDN'T WORK - REMOVE LATER
     """
     HSV segmentation + contour extraction.
     Returns list of [x, y, radius].
@@ -120,7 +150,9 @@ def detect_colored_pins_with_hsv_filtering(frame):
     return detections
 
 
-def play_video(video_path: Path, start_frame: int = 0):
+def play_video(
+    video_path: Path, camera_name: str, camera_calibration: CameraCalibration, start_frame: int = 0
+):
     output_path = video_path.parent / "tracked_frames"
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -150,8 +182,22 @@ def play_video(video_path: Path, start_frame: int = 0):
     trackers = []
     bboxes = []
 
+    # Image rectifier
+    image_size = (1920, 1080)
+    map1, map2 = cv2.initUndistortRectifyMap(
+        camera_calibration.mtx,
+        camera_calibration.dist,
+        camera_calibration.rectification_matrix,
+        camera_calibration.projection_matrix,
+        image_size,
+        cv2.CV_16SC2,
+    )
+
     while True:
-        ret, frame = cap.read()
+        ret, frame_raw = cap.read()
+
+        frame = cv2.remap(frame_raw, map1, map2, cv2.INTER_LINEAR)
+
         if not ret:
             print("Reached end of video or cannot fetch the frame.")
             break
@@ -160,7 +206,7 @@ def play_video(video_path: Path, start_frame: int = 0):
         frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1  # OpenCV is 0-indexed
 
         if not tracker_initialized:
-            bboxes_file = output_path / "left_bbox.json"
+            bboxes_file = output_path / f"{camera_name}_bbox.json"
             if bboxes_file.exists():
                 with open(bboxes_file, "r") as f:
                     bboxes = json.load(f)
@@ -169,10 +215,9 @@ def play_video(video_path: Path, start_frame: int = 0):
                     bbox = cv2.selectROI(opencv_window_name, frame, True)
                     bboxes.append(bbox)
 
-                # save bounded boxes in yaml 
+                # save bounded boxes in yaml
                 with open(bboxes_file, "w") as f:
                     json.dump(bboxes, f, indent=4)
-
 
             for bbox in bboxes:
                 tracker = cv2.TrackerCSRT_create()
@@ -180,7 +225,6 @@ def play_video(video_path: Path, start_frame: int = 0):
                 trackers.append(tracker)
                 tracker_initialized = True
                 print(f"Tracker initialized with bbox: {bbox}. Status: {ok}")
-
 
             # bbox = cv2.selectROI(opencv_window_name, frame, False)
             # ok = tracker.init(frame, bbox)
@@ -265,9 +309,13 @@ def play_video(video_path: Path, start_frame: int = 0):
 
 
 if __name__ == "__main__":
-    # Example usage, replace with your own video file path and starting frame if needed
-    video_file = Path(
-        "data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/left.mp4"
+
+    camera_name = "right"
+    video_file = Path(f"data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/{camera_name}.mp4")
+    camera_calibration_file = Path(
+        f"data/phantom_demo/video_20h08m15/ros_calibration/{camera_name}.yaml"
     )
+    camera_calibration = load_yaml_camera_calibration(camera_calibration_file)
+
     start_at_frame = 170  # Change this to the desired starting frame index
-    play_video(video_file, start_frame=start_at_frame)
+    play_video(video_file, camera_name, camera_calibration, start_frame=start_at_frame)
