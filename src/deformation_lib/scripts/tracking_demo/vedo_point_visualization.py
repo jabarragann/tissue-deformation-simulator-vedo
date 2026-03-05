@@ -1,59 +1,164 @@
-import numpy as np
-from vedo import Plotter, Sphere, Text2D
+from functools import wraps
+from pathlib import Path
 import time
+import numpy as np
+from numpy import typing as npt
+from typing import Any, Callable, Optional
+from vedo import Plotter
+from vedo import Image
+from vedo.shapes import Sphere, Text2D
+import cv2
 
-# -----------------------------
-# Load your data
-# -----------------------------
-data = np.load("./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/tracked_frames/3d_points.npz")
-points = data["arr_0"]          # shape: (535, 5, 3)
-n_frames = points.shape[0]
+colors = ["purple","pink", "yellow", "red", "green"]
 
-# -----------------------------
-# Create plotter
-# -----------------------------
-plt = Plotter(title="3D Point Displacement", bg="black", interactive=True)
 
-# Distinct colors for 5 points
-colors = ["red", "green", "blue", "yellow", "magenta"]
+def time_init(func: Callable[..., Any]):
+    @wraps(func)
+    def wrapper(class_pt: Any, *args: Any, **kwargs: Any) -> Any:
+        start = time.time()
+        result = func(class_pt, *args, **kwargs)
+        end = time.time()
+        print(f"{class_pt.__class__.__name__}.__init__ took {end - start:.6f} seconds")
+        return result
 
-# -----------------------------
-# Create spheres (radius = 3 mm)
-# -----------------------------
-spheres = []
-for i in range(5):
-    s = Sphere(r=0.003)         # 3 mm in meters
-    s.c(colors[i])
-    spheres.append(s)
-    plt.add(s)
+    return wrapper
 
-# -----------------------------
-# Frame counter text (upper-left)
-# -----------------------------
-frame_text = Text2D(
-    "Frame: 0",
-    pos="top-left",
-    c="white",
-    font="Courier",
-    s=1.2
-)
-plt.add(frame_text)
 
-# -----------------------------
-# Animation loop (20 FPS)
-# -----------------------------
-fps = 20
-dt = 1.0 / fps
+class VideoPlayer:
+    def __init__(self, video_path: Path, start_frame: int = 0):
+        self.cap = self.open_video(video_path, start_frame)
 
-for f in range(n_frames):
-    # Update sphere positions
-    for i in range(5):
-        spheres[i].pos(points[f, i])
+    def open_video(self, video_path: Path, start_frame: int = 0) -> cv2.VideoCapture:
+        cap = cv2.VideoCapture(str(video_path))
 
-    # Update frame text
-    frame_text.text(f"Frame: {f}")
+        if not cap.isOpened():
+            print(f"Unable to open video file: {video_path}")
+            raise ValueError(f"Unable to open video file: {video_path}")
 
-    plt.render()
-    time.sleep(dt)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if start_frame < 0 or start_frame >= total_frames:
+            print(
+                f"start_frame {start_frame} is out of range. Must be between 0 and {total_frames - 1}"
+            )
+            cap.release()
+            raise ValueError(
+                f"start_frame {start_frame} is out of range. Must be between 0 and {total_frames - 1}"
+            )
 
-plt.interactive().close()
+        # Set starting frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+        return cap
+
+    def get_frame(self) -> Optional[npt.NDArray[np.uint8]]:
+        ret, frame = self.cap.read()
+        if not ret:
+            print("Error: Could not read frame")
+            return None
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        return frame.astype(np.uint8)
+
+
+class AnimationViewer(Plotter):
+    @time_init
+    def __init__(self, video_player: VideoPlayer):
+        kwargs: dict[str, Any] = {"size": (1200, 800), "pos": (1920, 0)}
+        kwargs.update({"bg": "black", "bg2": "black"})
+
+        self.title = "3D Point Displacement"
+        self.bg = "black"
+        self.video_player = video_player
+
+        super().__init__(title=self.title, shape=(1, 2), sharecam=False, **kwargs)
+
+        self.set_scene()
+
+        self.load_data()
+        self.init_animation()
+
+    def load_data(self):
+        data = np.load(
+            "./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/tracked_frames/3d_points.npz"
+        )
+        self.points = data["arr_0"]  # shape: (535, 5, 3)
+        self.n_frames = self.points.shape[0]
+
+    def init_animation(self):
+        self.fps = 20
+        self.current_frame_id = 0
+        self.dt = 1.0 / self.fps
+        self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
+
+        self.add_callback("timer", self.loop_func)  # type: ignore
+
+    def set_scene(self):
+        # Point from tracked data
+        self.sphere_list: list[Sphere] = []
+
+        for i in range(5):
+            s = Sphere(r=0.003)  # 3 mm in meters
+            s.c(colors[i])  # type: ignore
+            self.sphere_list.append(s)
+            self.at(0).add(s)  # type: ignore
+
+        self.frame_text = Text2D(
+            "Frame: 0", pos="top-left", c="white", font="Courier", s=1.2
+        )
+        self.at(0).add(self.frame_text)  # type: ignore
+
+        # Image
+        black_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        self.image = Image(black_frame)
+
+        # self.image = Image(
+        #     "./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/tracked_frames/frame_178.png"
+        # )
+        self.at(1).add(self.image)  # type: ignore
+
+        # Temporary 3D shape
+        # self.cube = Cube(
+        #     side=0.003,
+        #     c="tomato",
+        #     alpha=0.8,
+        # )
+        # self.cube.lighting("plastic")
+        # self.at(1).add(self.cube)  # type: ignore
+
+    def loop_func(self, event: Any):
+        if self.current_frame_id < self.n_frames:
+            # Update Video Frames
+            frame = self.video_player.get_frame()
+            if frame is not None:
+                self.image = Image(frame)
+                self.at(1).add(self.image)  # type: ignore
+
+            # Update sphere positions
+            for i in range(5):
+                self.sphere_list[i].pos(self.points[self.current_frame_id, i])
+
+            # Update frame text
+            self.frame_text.text(f"Frame: {self.current_frame_id}")  # type: ignore
+
+            self.current_frame_id += 1
+
+        self.render()
+
+
+def main1():
+
+    video_path = Path(
+        "./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/left.mp4"
+    )
+    video_player = VideoPlayer(
+        video_path=video_path,
+        start_frame=170,
+    )
+    viewer = AnimationViewer(video_player)  # type: ignore
+
+    viewer.show().interactive().close()  # type: ignore
+
+
+if __name__ == "__main__":
+    main1()
