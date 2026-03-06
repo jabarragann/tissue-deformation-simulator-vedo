@@ -1,3 +1,4 @@
+from enum import Enum
 from functools import wraps
 from pathlib import Path
 import time
@@ -9,8 +10,17 @@ from vedo import Image
 from vedo.shapes import Sphere, Text2D
 import cv2
 
-colors = ["purple","pink", "yellow", "red", "green"]
+colors = ["purple", "pink", "yellow", "red", "green"]
 
+class AnimationStatus(Enum):
+    PLAY = "play"
+    PAUSE = "pause"
+
+    def toggle(self):
+        if self == AnimationStatus.PLAY:
+            return AnimationStatus.PAUSE
+        else:
+            return AnimationStatus.PLAY
 
 def time_init(func: Callable[..., Any]):
     @wraps(func)
@@ -64,19 +74,43 @@ class VideoPlayer:
 class AnimationViewer(Plotter):
     @time_init
     def __init__(self, video_player: VideoPlayer):
-        kwargs: dict[str, Any] = {"size": (1200, 800), "pos": (1920, 0)}
-        kwargs.update({"bg": "black", "bg2": "black"})
 
         self.title = "3D Point Displacement"
         self.bg = "black"
         self.video_player = video_player
+        self.animation_status = AnimationStatus.PAUSE
 
-        super().__init__(title=self.title, shape=(1, 2), sharecam=False, **kwargs)
+        kwargs: dict[str, Any] = {
+            "size": (1200, 800),
+            "pos": (1920, 0),
+            "title": self.title,
+        }
+        kwargs.update({"bg": "black", "bg2": "black"})
+
+        super().__init__(shape=(1, 2), sharecam=False, **kwargs)
+
+        self.add_callback("KeyPress", self.key_press_cb)  # type: ignore
 
         self.set_scene()
 
         self.load_data()
         self.init_animation()
+
+    def key_press_cb(self, evt: Any):
+        """Handle keyboard events"""
+
+        key = evt.keypress
+        if key == "q":
+            self.break_interaction()
+        elif key.lower() == "p":
+            self.animation_status = self.animation_status.toggle()
+            self.timer_callback("destroy", self.timer_id) # type: ignore
+
+            if self.animation_status == AnimationStatus.PLAY:
+                self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
+
+            print(f"Animation {self.animation_status.value}")
+
 
     def load_data(self):
         data = np.load(
@@ -86,12 +120,16 @@ class AnimationViewer(Plotter):
         self.n_frames = self.points.shape[0]
 
     def init_animation(self):
+
+        self.add_callback("timer", self.loop_func)  # type: ignore
+
         self.fps = 20
         self.current_frame_id = 0
         self.dt = 1.0 / self.fps
         self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
 
-        self.add_callback("timer", self.loop_func)  # type: ignore
+        self.animation_status = AnimationStatus.PLAY
+
 
     def set_scene(self):
         # Point from tracked data
@@ -157,6 +195,7 @@ def main1():
     )
     viewer = AnimationViewer(video_player)  # type: ignore
 
+    print("Finish setup..")
     viewer.show().interactive().close()  # type: ignore
 
 
