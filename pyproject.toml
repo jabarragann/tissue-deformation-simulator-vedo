@@ -21,3 +21,7 @@ dependencies = [
     "vedo>=2025.5.4"
 ]
 
+
+[tool.pyright]
+venvPath =  "/home/juan95/pyvenv/"
+venv = "pose_est"

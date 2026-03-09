@@ -7,6 +7,7 @@ from numpy import typing as npt
 from typing import Any, Callable, Optional
 from vedo import Plotter
 from vedo import Image
+from vedo import Grid, Points
 from vedo.shapes import Sphere, Text2D
 import cv2
 
@@ -87,13 +88,15 @@ class AnimationViewer(Plotter):
         }
         kwargs.update({"bg": "black", "bg2": "black"})
 
-        super().__init__(shape=(1, 2), sharecam=False, **kwargs)
-
+        super().__init__(shape=(1, 3), sharecam=False, **kwargs)
+        self.interactor.RemoveObservers("KeyPressEvent")  # type: ignore
         self.add_callback("KeyPress", self.key_press_cb)  # type: ignore
 
+        self.load_data()
+
+        # Set scene requires point locations to be loaded (in self.load_data())
         self.set_scene()
 
-        self.load_data()
         self.init_animation()
 
     def key_press_cb(self, evt: Any):
@@ -132,7 +135,7 @@ class AnimationViewer(Plotter):
 
 
     def set_scene(self):
-        # Point from tracked data
+        # Split 1 - point from tracked data
         self.sphere_list: list[Sphere] = []
 
         for i in range(5):
@@ -146,7 +149,7 @@ class AnimationViewer(Plotter):
         )
         self.at(0).add(self.frame_text)  # type: ignore
 
-        # Image
+        # Split 2 - Image
         black_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
         self.image = Image(black_frame)
 
@@ -163,6 +166,12 @@ class AnimationViewer(Plotter):
         # )
         # self.cube.lighting("plastic")
         # self.at(1).add(self.cube)  # type: ignore
+
+        ## Split 3 - Grid
+        self.initial_markers = Points(self.points[0]).color("red", 0.5).ps(10) # type: ignore
+        center_of_mass = self.initial_markers.center_of_mass()
+        self.grid = Grid(pos=center_of_mass, s=(0.1,0.1), res=(20, 20)).c("white")  # type: ignore
+        self.at(2).add([self.grid, self.initial_markers])  # type: ignore
 
     def loop_func(self, event: Any):
         if self.current_frame_id < self.n_frames:
