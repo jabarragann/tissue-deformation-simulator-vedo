@@ -11,7 +11,10 @@ from vedo import Grid, Points
 from vedo.shapes import Sphere, Text2D
 import cv2
 
+from deformation_lib.scripts.deformation_fields.RBF import FullRBF
+
 colors = ["purple", "pink", "yellow", "red", "green"]
+
 
 class AnimationStatus(Enum):
     PLAY = "play"
@@ -22,6 +25,7 @@ class AnimationStatus(Enum):
             return AnimationStatus.PAUSE
         else:
             return AnimationStatus.PLAY
+
 
 def time_init(func: Callable[..., Any]):
     @wraps(func)
@@ -107,13 +111,12 @@ class AnimationViewer(Plotter):
             self.break_interaction()
         elif key.lower() == "p":
             self.animation_status = self.animation_status.toggle()
-            self.timer_callback("destroy", self.timer_id) # type: ignore
+            self.timer_callback("destroy", self.timer_id)  # type: ignore
 
             if self.animation_status == AnimationStatus.PLAY:
                 self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
 
             print(f"Animation {self.animation_status.value}")
-
 
     def load_data(self):
         data = np.load(
@@ -132,7 +135,6 @@ class AnimationViewer(Plotter):
         self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
 
         self.animation_status = AnimationStatus.PLAY
-
 
     def set_scene(self):
         # Split 1 - point from tracked data
@@ -168,9 +170,9 @@ class AnimationViewer(Plotter):
         # self.at(1).add(self.cube)  # type: ignore
 
         ## Split 3 - Grid
-        self.initial_markers = Points(self.points[0]).color("red", 0.5).ps(10) # type: ignore
-        center_of_mass = self.initial_markers.center_of_mass()
-        self.grid = Grid(pos=center_of_mass, s=(0.1,0.1), res=(20, 20)).c("white")  # type: ignore
+        self.initial_markers = Points(self.points[0]).color("red", 0.5).ps(10)  # type: ignore
+        center_of_mass = self.initial_markers.center_of_mass()  # type: ignore
+        self.grid = Grid(pos=center_of_mass, s=(0.1, 0.1), res=(20, 20)).c("white")  # type: ignore
         self.at(2).add([self.grid, self.initial_markers])  # type: ignore
 
     def loop_func(self, event: Any):
@@ -188,9 +190,30 @@ class AnimationViewer(Plotter):
             # Update frame text
             self.frame_text.text(f"Frame: {self.current_frame_id}")  # type: ignore
 
+            self.grid_deformation() # Not working
+
             self.current_frame_id += 1
 
         self.render()
+
+    def grid_deformation(self):
+
+        displacement_field = FullRBF(sigma=0.01)
+        if self.current_frame_id > 0:
+            displacement = (
+                self.points[self.current_frame_id]
+                - self.points[self.current_frame_id - 1]
+            )
+            error = displacement_field.fit(
+                self.points[self.current_frame_id - 1],
+                displacement[:, 0],
+                displacement[:, 1],
+                displacement[:, 2],
+            )
+            print(f"Fitting error for frame {self.current_frame_id:04d}: {error: 0.4e}")
+            grid_points = self.grid.points  # type: ignore
+            distort_grid_points = grid_points + displacement_field.predict(grid_points)
+            self.grid.points = distort_grid_points  # type: ignore
 
 
 def main1():
