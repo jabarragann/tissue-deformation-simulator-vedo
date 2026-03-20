@@ -41,4 +41,4 @@ repos:
           # making isort line length compatible with black
           # F841: local variable is assigned but never used
         -   "--max-line-length=88"
-        -   "--ignore=E203,E402,E722,E501,W503,F401,E266,F841"
+        -   "--ignore=E203,E402,E722,E501,W503,F401,E266"

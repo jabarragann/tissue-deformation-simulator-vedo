@@ -154,7 +154,6 @@ def play_video(
     bboxes: list[tuple[int, int, int, int]] = []
 
     # Image rectifier
-    image_size = (1920, 1080)
     map1, map2 = cv2.initUndistortRectifyMap(
         camera_calibration.mtx,
         camera_calibration.dist,
@@ -215,7 +214,7 @@ def play_video(
         if key == ord("p"):  # Press 'p' to toggle pause/play
             cv2.setMouseCallback(
                 opencv_window_name,
-                print_pixel_colors,
+                print_pixel_colors,  # type: ignore
                 {"frame": frame},  # type: ignore
             )
 
@@ -463,8 +462,12 @@ def play_stereo_video(
     cv2.destroyAllWindows()
 
     all_3d_points_np = np.array(all_3d_points, dtype=np.float32)
-    with open(output_path / "3d_points.npz", "wb") as f:
-        np.savez(f, all_3d_points_np)
+    prompt_user_to_save = input("Save 3D points? (y/n)")
+    if prompt_user_to_save == "y":
+        with open(output_path / "3d_points.npz", "wb") as f:
+            np.savez(f, all_3d_points_np)
+    else:
+        print("3D points not saved.")
 
 
 if __name__ == "__main__":

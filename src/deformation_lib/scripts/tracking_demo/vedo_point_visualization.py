@@ -78,7 +78,7 @@ class VideoPlayer:
 
 class AnimationViewer(Plotter):
     @time_init
-    def __init__(self, video_player: VideoPlayer):
+    def __init__(self, video_player: VideoPlayer, tracked_points_path: Path):
 
         self.title = "3D Point Displacement"
         self.bg = "black"
@@ -96,7 +96,7 @@ class AnimationViewer(Plotter):
         self.interactor.RemoveObservers("KeyPressEvent")  # type: ignore
         self.add_callback("KeyPress", self.key_press_cb)  # type: ignore
 
-        self.load_data()
+        self.load_data(tracked_points_path)
 
         # Set scene requires point locations to be loaded (in self.load_data())
         self.set_scene()
@@ -119,10 +119,8 @@ class AnimationViewer(Plotter):
 
             print(f"Animation {self.animation_status.value}")
 
-    def load_data(self):
-        data = np.load(
-            "./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/tracked_frames/3d_points.npz"
-        )
+    def load_data(self, input_path: Path):
+        data = np.load(str(input_path))
         self.points = data["arr_0"]  # shape: (535, 5, 3)
         self.n_frames = self.points.shape[0]
 
@@ -236,19 +234,19 @@ class AnimationViewer(Plotter):
             distort_grid_points = grid_points + displacement_field.predict(grid_points)
             self.grid.points = distort_grid_points  # type: ignore
 
-            self.initial_markers.points = self.points[self.current_frame_id]
+            self.initial_markers.points = self.points[self.current_frame_id]  # type: ignore
 
 
 def main1():
 
-    video_path = Path(
-        "./data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/left.mp4"
-    )
+    video_path = Path("./data/phantom_demo/video_20_08_15/left.mp4")
+    tracked_points_path = video_path.parent / "tracked_frames" / "3d_points.npz"
+
     video_player = VideoPlayer(
         video_path=video_path,
         start_frame=178,
     )
-    viewer = AnimationViewer(video_player)  # type: ignore
+    viewer = AnimationViewer(video_player, tracked_points_path)  # type: ignore
 
     print("Finish setup..")
     viewer.show().interactive().close()  # type: ignore
