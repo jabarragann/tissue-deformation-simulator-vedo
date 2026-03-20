@@ -13,6 +13,7 @@ import cv2
 
 from deformation_lib.scripts.deformation_fields.RBF import FullRBF
 
+PINS_TO_TRACK = 5
 colors = ["purple", "pink", "yellow", "red", "green"]
 
 
@@ -100,6 +101,7 @@ class AnimationViewer(Plotter):
 
         # Set scene requires point locations to be loaded (in self.load_data())
         self.set_scene()
+        # self.set_cameras_pose()
 
         self.init_animation()
 
@@ -140,7 +142,7 @@ class AnimationViewer(Plotter):
         # Split 1 - point from tracked data
         self.sphere_list: list[Sphere] = []
 
-        for i in range(5):
+        for i in range(PINS_TO_TRACK):
             s = Sphere(r=0.003)  # 3 mm in meters
             s.c(colors[i])  # type: ignore
             self.sphere_list.append(s)
@@ -184,7 +186,7 @@ class AnimationViewer(Plotter):
                 self.at(1).add(self.image)  # type: ignore
 
             # Update sphere positions
-            for i in range(5):
+            for i in range(PINS_TO_TRACK):
                 self.sphere_list[i].pos(self.points[self.current_frame_id, i])
 
             # Update frame text
@@ -194,7 +196,27 @@ class AnimationViewer(Plotter):
 
             self.current_frame_id += 1
 
-        self.render()
+            self.render()
+
+    def set_cameras_pose(self):
+        camera_origin = np.array([0, 0, 0])
+        camera_rotation = np.array([[1,0,0],[0,-1,0],[0,0,-1]])
+
+        # VTK camera parameters
+        # right = camera_rotation[:, 0]
+        up = camera_rotation[:, 1]
+        # forward = camera_rotation[:, 2]
+        # In VTK, the camera looks along the negative Z of its local system.
+        focal_point = np.array([0, 0, -1])
+
+        # focal_point = camera_origin + forward
+        clipping_range = np.array([0.0001, 1])
+        
+        for idx in range(3):
+            self.at(idx).camera.SetPosition(camera_origin)  # type: ignore
+            self.at(idx).camera.SetFocalPoint(focal_point)  # type: ignore
+            self.at(idx).camera.SetViewUp(up)  # type: ignore
+            self.at(idx).camera.SetClippingRange(clipping_range)  # type: ignore
 
     def grid_deformation(self):
 
@@ -215,6 +237,8 @@ class AnimationViewer(Plotter):
             distort_grid_points = grid_points + displacement_field.predict(grid_points)
             self.grid.points = distort_grid_points  # type: ignore
 
+            self.initial_markers.points= self.points[self.current_frame_id]
+
 
 def main1():
 
@@ -223,7 +247,7 @@ def main1():
     )
     video_player = VideoPlayer(
         video_path=video_path,
-        start_frame=170,
+        start_frame=178,
     )
     viewer = AnimationViewer(video_player)  # type: ignore
 
