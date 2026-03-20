@@ -8,6 +8,8 @@ import numpy.typing as npt
 import yaml
 
 opencv_window_name = "Video playback"
+VIEWING_WINDOW_SCALE = 0.9
+PINS_TO_TRACK = 5
 COLORS = [
     (255, 0, 0),  # Blue
     (0, 255, 0),  # Green
@@ -30,7 +32,7 @@ def print_pixel_colors(event: int, x: int, y: int, flags: int, param: dict[str, 
         bgr = current_frame[y, x].tolist()
         rgb = [bgr[2], bgr[1], bgr[0]]
         # Convert to HSV
-        hsv_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV) # type: ignore
+        hsv_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2HSV)  # type: ignore
         hsv_frame = cast(npt.NDArray[np.uint8], hsv_frame)
 
         hsv = hsv_frame[y, x].tolist()
@@ -46,6 +48,7 @@ class CameraCalibration:
     dist: npt.NDArray[np.float32]
     rectification_matrix: npt.NDArray[np.float32]
     projection_matrix: npt.NDArray[np.float32]
+    image_size: tuple[int, int]
 
 
 def load_yaml_camera_calibration(yaml_file: Path) -> CameraCalibration:
@@ -62,8 +65,11 @@ def load_yaml_camera_calibration(yaml_file: Path) -> CameraCalibration:
     projection_matrix = np.array(
         data["projection_matrix"]["data"], dtype=np.float32
     ).reshape(3, 4)
+    image_size = (data["image_width"], data["image_height"])
 
-    return CameraCalibration(mtx, dist, rectification_matrix, projection_matrix)
+    return CameraCalibration(
+        mtx, dist, rectification_matrix, projection_matrix, image_size
+    )
 
 
 def open_video(video_path: Path, start_frame: int = 0) -> cv2.VideoCapture:
@@ -98,11 +104,13 @@ def initialize_trackers(
     bboxes: list[tuple[int, int, int, int]] = []
     trackers: list[cv2.TrackerCSRT] = []
     bboxes_file = output_path / f"{camera_name}_bbox.json"
+    bboxes_file.parent.mkdir(parents=True, exist_ok=True)
+
     if bboxes_file.exists():
         with open(bboxes_file, "r") as f:
             bboxes = json.load(f)
     else:
-        for _ in range(5):
+        for _ in range(PINS_TO_TRACK):
             bbox = cv2.selectROI(opencv_window_name, frame, True)
             bbox = cast(tuple[int, int, int, int], bbox)
             bboxes.append(bbox)
@@ -111,10 +119,12 @@ def initialize_trackers(
         with open(bboxes_file, "w") as f:
             json.dump(bboxes, f, indent=4)
 
+    cv2.destroyAllWindows()
+
     for bbox in bboxes:
-        tracker = cv2.TrackerCSRT_create() # type: ignore
-        ok = tracker.init(frame, bbox) # type: ignore
-        trackers.append(tracker) # type: ignore
+        tracker = cv2.TrackerCSRT_create()  # type: ignore
+        ok = tracker.init(frame, bbox)  # type: ignore
+        trackers.append(tracker)  # type: ignore
         print(f"Tracker initialized with bbox: {bbox}. Status: {ok}")
 
     return bboxes, trackers
@@ -130,8 +140,8 @@ def play_video(
     output_path.mkdir(parents=True, exist_ok=True)
 
     cv2.namedWindow(opencv_window_name, cv2.WINDOW_NORMAL)
-    # Resize window to 90% of 1920x1080 = 1728x972
-    cv2.resizeWindow(opencv_window_name, 1728, 972)
+    viewing_window_size = (int(camera_calibration.image_size[0] * VIEWING_WINDOW_SCALE), int(camera_calibration.image_size[1] * VIEWING_WINDOW_SCALE))
+    cv2.resizeWindow(opencv_window_name, viewing_window_size[0], viewing_window_size[1])
 
     cap = open_video(video_path, start_frame)
     # tracker = cv2.TrackerCSRT_create()
@@ -146,7 +156,7 @@ def play_video(
         camera_calibration.dist,
         camera_calibration.rectification_matrix,
         camera_calibration.projection_matrix,
-        image_size,
+        camera_calibration.image_size,
         cv2.CV_16SC2,
     )
 
@@ -200,7 +210,9 @@ def play_video(
 
         if key == ord("p"):  # Press 'p' to toggle pause/play
             cv2.setMouseCallback(
-                opencv_window_name, print_pixel_colors, {"frame": frame} # type: ignore
+                opencv_window_name,
+                print_pixel_colors,
+                {"frame": frame},  # type: ignore
             )
 
             paused = True
@@ -236,11 +248,14 @@ def play_stereo_video(
     opencv_window_name_right = opencv_window_name + "_right"
     output_path = left_path.parent / "tracked_frames"
 
-    # Resize window to 90% of 1920x1080 = 1728x972
+    resized_window_size = (
+        int(left_calibration.image_size[0] * VIEWING_WINDOW_SCALE),
+        int(left_calibration.image_size[1] * VIEWING_WINDOW_SCALE),
+    )
     cv2.namedWindow(opencv_window_name_left, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(opencv_window_name_left, 1728, 972)
+    cv2.resizeWindow(opencv_window_name_left, resized_window_size[0], resized_window_size[1])
     cv2.namedWindow(opencv_window_name_right, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(opencv_window_name_right, 1728, 972)
+    cv2.resizeWindow(opencv_window_name_right, resized_window_size[0], resized_window_size[1])
 
     left_cap = open_video(left_path, start_frame)
     right_cap = open_video(right_path, start_frame)
@@ -253,13 +268,12 @@ def play_stereo_video(
     right_bboxes: list[tuple[int, int, int, int]] = []
 
     # Image rectifier
-    image_size = (1920, 1080)
     left_map1, left_map2 = cv2.initUndistortRectifyMap(
         left_calibration.mtx,
         left_calibration.dist,
         left_calibration.rectification_matrix,
         left_calibration.projection_matrix,
-        image_size,
+        left_calibration.image_size,
         cv2.CV_16SC2,
     )
     right_map1, right_map2 = cv2.initUndistortRectifyMap(
@@ -267,7 +281,7 @@ def play_stereo_video(
         right_calibration.dist,
         right_calibration.rectification_matrix,
         right_calibration.projection_matrix,
-        image_size,
+        right_calibration.image_size,
         cv2.CV_16SC2,
     )
 
@@ -280,12 +294,14 @@ def play_stereo_video(
             print("Reached end of video or cannot fetch the frame.")
             break
 
-        left_frame = cv2.remap(left_frame_raw, left_map1, left_map2, cv2.INTER_LINEAR)
-        right_frame = cv2.remap(
+        left_frame_rect = cv2.remap(
+            left_frame_raw, left_map1, left_map2, cv2.INTER_LINEAR
+        )
+        right_frame_rect = cv2.remap(
             right_frame_raw, right_map1, right_map2, cv2.INTER_LINEAR
         )
-        left_frame = cast(npt.NDArray[np.uint8], left_frame)
-        right_frame = cast(npt.NDArray[np.uint8], right_frame)
+        left_frame_rect = cast(npt.NDArray[np.uint8], left_frame_rect)
+        right_frame_rect = cast(npt.NDArray[np.uint8], right_frame_rect)
 
         # Get current frame number
         frame_idx = (
@@ -294,10 +310,10 @@ def play_stereo_video(
 
         if not tracker_initialized:
             left_bboxes, left_trackers = initialize_trackers(
-                output_path, "left", left_frame
+                output_path, "left", left_frame_rect
             )
             right_bboxes, right_trackers = initialize_trackers(
-                output_path, "right", right_frame
+                output_path, "right", right_frame_rect
             )
             tracker_initialized = True
 
@@ -308,16 +324,20 @@ def play_stereo_video(
             ["left", "right"],
             [left_trackers, right_trackers],
             [left_bboxes, right_bboxes],
-            [left_frame, right_frame],
+            [left_frame_rect, right_frame_rect],
         ):
             for idx, tracker in enumerate(trackers):
                 ok, bbox = tracker.update(frame)
                 if ok:
-                    bboxes.append(bbox) # type: ignore
+                    bboxes.append(bbox)  # type: ignore
                 else:
-                    print(f"{camera_name} Tracker {idx} failed to update with bbox: {bbox}")
+                    print(
+                        f"{camera_name} Tracker {idx} failed to update with bbox: {bbox}"
+                    )
         ## Draw boxes
-        for bboxes, frame in zip([left_bboxes, right_bboxes], [left_frame, right_frame]):
+        for bboxes, frame in zip(
+            [left_bboxes, right_bboxes], [left_frame_rect, right_frame_rect]
+        ):
             for idx, bbox in enumerate(bboxes):
                 p1 = (int(bbox[0]), int(bbox[1]))
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
@@ -340,8 +360,12 @@ def play_stereo_video(
             right_center[1] = left_center[1]  # Assuming correct rectification
             right_points.append(right_center)
 
-        left_points_np: npt.NDArray[np.float32] = np.array(left_points, dtype=np.float32)
-        right_points_np: npt.NDArray[np.float32] = np.array(right_points, dtype=np.float32)
+        left_points_np: npt.NDArray[np.float32] = np.array(
+            left_points, dtype=np.float32
+        )
+        right_points_np: npt.NDArray[np.float32] = np.array(
+            right_points, dtype=np.float32
+        )
 
         # Triangulate with OpenCV
         points3d = cv2.triangulatePoints(
@@ -373,14 +397,14 @@ def play_stereo_video(
         Y = (left_points_np[:, 1] - cy) * Z / fy
 
         points3d_2 = np.stack((X, Y, Z), axis=1)
-        if points3d_2.shape[0] != 5:
+        if points3d_2.shape[0] != PINS_TO_TRACK:
             print(f"Frame {frame_idx} has {points3d_2.shape[0]} points. Expected 5.")
         else:
             all_3d_points.append(points3d_2)
 
         # Draw frame number on left upper corner
         cv2.putText(
-            left_frame,
+            left_frame_rect,
             f"Frame: {frame_idx}",
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -390,8 +414,20 @@ def play_stereo_video(
             cv2.LINE_AA,
         )
 
-        cv2.imshow(opencv_window_name_left, left_frame)
-        cv2.imshow(opencv_window_name_right, right_frame)
+        cv2.imshow(opencv_window_name_left, left_frame_rect)
+        cv2.imshow(opencv_window_name_right, right_frame_rect)
+
+        # Save rect frames
+        left_frame_rect_path = (
+            output_path / "rect" / "left" / f"frame_{frame_idx}_left.png"
+        )
+        right_frame_rect_path = (
+            output_path / "rect" / "right" / f"frame_{frame_idx}_right.png"
+        )
+        left_frame_rect_path.parent.mkdir(parents=True, exist_ok=True)
+        right_frame_rect_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(left_frame_rect_path), left_frame_rect)
+        cv2.imwrite(str(right_frame_rect_path), right_frame_rect)
 
         key = cv2.waitKey(30) & 0xFF
 
@@ -424,8 +460,14 @@ def play_stereo_video(
 
 
 if __name__ == "__main__":
-    start_at_frame = 170  # Change this to the desired starting frame index
+    ### Demo parameters
+    # start_at_frame = 178  # Change this to the desired starting frame index
+    # file_name = "video_19_56_37"
 
+    start_at_frame = 178  # Change this to the desired starting frame index
+    file_name = "video_20_08_15"
+
+    ### Single camera demo
     # camera_name = "right"
     # video_file = Path(
     #     f"data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/{camera_name}.mp4"
@@ -437,19 +479,16 @@ if __name__ == "__main__":
 
     # play_video(video_file, camera_name, camera_calibration, start_frame=start_at_frame)
 
-    left_path = Path(
-        "data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/left.mp4"
-    )
+    ### Stereo camera demo
+    left_path = Path(f"data/phantom_demo/{file_name}/left.mp4")
     left_calibration_file = Path(
-        "data/phantom_demo/video_20h08m15/ros_calibration/left.yaml"
+        "data/phantom_demo/calibration/offline_calibration_2dist_params/left.yaml"
     )
     left_calibration = load_yaml_camera_calibration(left_calibration_file)
 
-    right_path = Path(
-        "data/phantom_demo/video_20h08m15/rosbag_videos/video_20_08_15/right.mp4"
-    )
+    right_path = Path(f"data/phantom_demo/{file_name}/right.mp4")
     right_calibration_file = Path(
-        "data/phantom_demo/video_20h08m15/ros_calibration/right.yaml"
+        "data/phantom_demo/calibration/offline_calibration_2dist_params/right.yaml"
     )
     right_calibration = load_yaml_camera_calibration(right_calibration_file)
 
