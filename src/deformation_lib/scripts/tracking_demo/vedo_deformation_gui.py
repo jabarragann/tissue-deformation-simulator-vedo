@@ -92,7 +92,7 @@ class AnimationViewer(Plotter):
         }
         kwargs.update({"bg": "black", "bg2": "black"})
 
-        super().__init__(shape=(1, 3), sharecam=False, **kwargs)
+        super().__init__(shape=(1, 3), sharecam=False, axes=1, **kwargs)
         self.interactor.RemoveObservers("KeyPressEvent")  # type: ignore
         self.add_callback("KeyPress", self.key_press_cb)  # type: ignore
 
@@ -136,11 +136,13 @@ class AnimationViewer(Plotter):
         self.animation_status = AnimationStatus.PLAY
 
     def set_scene(self):
+
         # Split 1 - point from tracked data
         self.sphere_list: list[Sphere] = []
 
         for i in range(PINS_TO_TRACK):
-            s = Sphere(r=0.003)  # 3 mm in meters
+            pos = self.points[0, i]
+            s = Sphere(r=0.003, pos=pos)  # 3 mm in meters
             s.c(colors[i])  # type: ignore
             self.sphere_list.append(s)
             self.at(0).add(s)  # type: ignore
@@ -149,6 +151,9 @@ class AnimationViewer(Plotter):
             "Frame: 0", pos="top-left", c="white", font="Courier", s=1.2
         )
         self.at(0).add(self.frame_text)  # type: ignore
+
+        ## Add axes to the first subplot
+        self.at(0).show(axes=1)
 
         # Split 2 - Image
         black_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -195,25 +200,25 @@ class AnimationViewer(Plotter):
 
             self.render()
 
-    def set_cameras_pose(self):
-        camera_origin = np.array([0, 0, 0])
-        camera_rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # def set_cameras_pose(self):
+    #     camera_origin = np.array([0, 0, 0])
+    #     camera_rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
 
-        # VTK camera parameters
-        # right = camera_rotation[:, 0]
-        up = camera_rotation[:, 1]
-        # forward = camera_rotation[:, 2]
-        # In VTK, the camera looks along the negative Z of its local system.
-        focal_point = np.array([0, 0, -1])
+    #     # VTK camera parameters
+    #     # right = camera_rotation[:, 0]
+    #     up = camera_rotation[:, 1]
+    #     # forward = camera_rotation[:, 2]
+    #     # In VTK, the camera looks along the negative Z of its local system.
+    #     focal_point = np.array([0, 0, -1])
 
-        # focal_point = camera_origin + forward
-        clipping_range = np.array([0.0001, 1])
+    #     # focal_point = camera_origin + forward
+    #     clipping_range = np.array([0.0001, 1])
 
-        for idx in range(3):
-            self.at(idx).camera.SetPosition(camera_origin)  # type: ignore
-            self.at(idx).camera.SetFocalPoint(focal_point)  # type: ignore
-            self.at(idx).camera.SetViewUp(up)  # type: ignore
-            self.at(idx).camera.SetClippingRange(clipping_range)  # type: ignore
+    #     for idx in [0,2]:
+    #         self.at(idx).camera.SetPosition(camera_origin)  # type: ignore
+    #         self.at(idx).camera.SetFocalPoint(focal_point)  # type: ignore
+    #         self.at(idx).camera.SetViewUp(up)  # type: ignore
+    #         self.at(idx).camera.SetClippingRange(clipping_range)  # type: ignore
 
     def grid_deformation(self):
 

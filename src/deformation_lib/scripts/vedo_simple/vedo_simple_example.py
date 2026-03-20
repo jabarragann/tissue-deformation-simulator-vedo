@@ -30,13 +30,17 @@ class MultiFigViewer(Plotter):
         # for idx in range(6):
         #     self.at(idx).show()
 
+        ## Add global axes to some subplots
+        self.at(0).show(axes=1)
+        self.at(2).show(axes=1)
+
     def add_cubes(self):
         """
         Populate the 2x3 grid with cubes.
         """
         for idx in range(6):
             cube = Cube(
-                side=1.0,
+                side=0.5,
                 c="tomato",
                 alpha=0.8,
             )
