@@ -1,10 +1,8 @@
 import time
-
 from functools import wraps
 from typing import Any
-from vedo import Plotter
-from vedo import Cube
-from vedo import show
+
+from vedo import Cube, Plotter, show
 
 
 def time_init(func):

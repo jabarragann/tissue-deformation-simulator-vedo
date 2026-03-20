@@ -1,14 +1,11 @@
 from typing import Any
-import numpy as np
-from deformation_lib.utils import reshape_to_grid
-from vedo import show
-from vedo.pyplot import plot
-from vedo import Rectangle
 
-from vedo import ScalarBar3D, Line
-from vedo import Plotter
+import numpy as np
+from vedo import Line, Plotter, Rectangle, ScalarBar3D, show
+from vedo.pyplot import plot
 
 from deformation_lib.surface import SurfaceData
+from deformation_lib.utils import reshape_to_grid
 
 
 def mesh_from_grid(X, Y, Z):

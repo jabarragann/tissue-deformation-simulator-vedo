@@ -1,7 +1,8 @@
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
+
 import cv2
 import numpy as np
 import numpy.typing as npt
@@ -52,7 +53,7 @@ class CameraCalibration:
 
 
 def load_yaml_camera_calibration(yaml_file: Path) -> CameraCalibration:
-    with open(yaml_file, "r") as f:
+    with open(yaml_file) as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
     mtx = np.array(data["camera_matrix"]["data"], dtype=np.float32).reshape(3, 3)
@@ -107,7 +108,7 @@ def initialize_trackers(
     bboxes_file.parent.mkdir(parents=True, exist_ok=True)
 
     if bboxes_file.exists():
-        with open(bboxes_file, "r") as f:
+        with open(bboxes_file) as f:
             bboxes = json.load(f)
     else:
         for _ in range(PINS_TO_TRACK):
@@ -140,7 +141,10 @@ def play_video(
     output_path.mkdir(parents=True, exist_ok=True)
 
     cv2.namedWindow(opencv_window_name, cv2.WINDOW_NORMAL)
-    viewing_window_size = (int(camera_calibration.image_size[0] * VIEWING_WINDOW_SCALE), int(camera_calibration.image_size[1] * VIEWING_WINDOW_SCALE))
+    viewing_window_size = (
+        int(camera_calibration.image_size[0] * VIEWING_WINDOW_SCALE),
+        int(camera_calibration.image_size[1] * VIEWING_WINDOW_SCALE),
+    )
     cv2.resizeWindow(opencv_window_name, viewing_window_size[0], viewing_window_size[1])
 
     cap = open_video(video_path, start_frame)
@@ -253,9 +257,13 @@ def play_stereo_video(
         int(left_calibration.image_size[1] * VIEWING_WINDOW_SCALE),
     )
     cv2.namedWindow(opencv_window_name_left, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(opencv_window_name_left, resized_window_size[0], resized_window_size[1])
+    cv2.resizeWindow(
+        opencv_window_name_left, resized_window_size[0], resized_window_size[1]
+    )
     cv2.namedWindow(opencv_window_name_right, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(opencv_window_name_right, resized_window_size[0], resized_window_size[1])
+    cv2.resizeWindow(
+        opencv_window_name_right, resized_window_size[0], resized_window_size[1]
+    )
 
     left_cap = open_video(left_path, start_frame)
     right_cap = open_video(right_path, start_frame)

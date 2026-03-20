@@ -1,6 +1,8 @@
 from typing import Optional
-from scipy.interpolate import RBFInterpolator
+
 import numpy as np
+from scipy.interpolate import RBFInterpolator
+
 
 class FullRBF:
     def __init__(self, sigma=0.01):
@@ -31,7 +33,9 @@ class FullRBF:
         # print(f"mse of dx: {np.square(dX - dx_est).sum()}")
         # print(f"mse of dy: {np.square(dY - dy_est).sum()}")
         # print(f"mse of dz: {np.square(dZ - dz_est).sum()}")
-        error = np.square( (dX-dx_est)**2 + (dY-dy_est)**2 + (dZ-dz_est)**2 ).sum()
+        error = np.square(
+            (dX - dx_est) ** 2 + (dY - dy_est) ** 2 + (dZ - dz_est) ** 2
+        ).sum()
 
         return error
 

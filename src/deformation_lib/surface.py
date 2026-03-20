@@ -1,5 +1,6 @@
-from scipy.interpolate import RegularGridInterpolator
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
+
 
 def make_surface_function(X, Y, Z):
     """
@@ -21,11 +22,12 @@ def make_surface_function(X, Y, Z):
 
     return f
 
+
 class SurfaceData:
     def __init__(self, X, Y, Z):
         self.X = X
         self.Y = Y
-        self.Z = Z 
+        self.Z = Z
 
     def surface_function(self):
         return make_surface_function(self.X, self.Y, self.Z)

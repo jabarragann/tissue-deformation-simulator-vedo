@@ -1,15 +1,14 @@
+import time
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-import time
+from typing import Any, Callable, Optional
+
+import cv2
 import numpy as np
 from numpy import typing as npt
-from typing import Any, Callable, Optional
-from vedo import Plotter
-from vedo import Image
-from vedo import Grid, Points
+from vedo import Grid, Image, Plotter, Points
 from vedo.shapes import Sphere, Text2D
-import cv2
 
 from deformation_lib.scripts.deformation_fields.RBF import FullRBF
 
@@ -192,7 +191,7 @@ class AnimationViewer(Plotter):
             # Update frame text
             self.frame_text.text(f"Frame: {self.current_frame_id}")  # type: ignore
 
-            self.grid_deformation() # Not working
+            self.grid_deformation()  # Not working
 
             self.current_frame_id += 1
 
@@ -200,7 +199,7 @@ class AnimationViewer(Plotter):
 
     def set_cameras_pose(self):
         camera_origin = np.array([0, 0, 0])
-        camera_rotation = np.array([[1,0,0],[0,-1,0],[0,0,-1]])
+        camera_rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
 
         # VTK camera parameters
         # right = camera_rotation[:, 0]
@@ -211,7 +210,7 @@ class AnimationViewer(Plotter):
 
         # focal_point = camera_origin + forward
         clipping_range = np.array([0.0001, 1])
-        
+
         for idx in range(3):
             self.at(idx).camera.SetPosition(camera_origin)  # type: ignore
             self.at(idx).camera.SetFocalPoint(focal_point)  # type: ignore
@@ -237,7 +236,7 @@ class AnimationViewer(Plotter):
             distort_grid_points = grid_points + displacement_field.predict(grid_points)
             self.grid.points = distort_grid_points  # type: ignore
 
-            self.initial_markers.points= self.points[self.current_frame_id]
+            self.initial_markers.points = self.points[self.current_frame_id]
 
 
 def main1():
