@@ -100,7 +100,7 @@ class AnimationViewer(Plotter):
 
         # Set scene requires point locations to be loaded (in self.load_data())
         self.set_scene()
-        # self.set_cameras_pose()
+        self.set_cameras_pose()
 
         self.init_animation()
 
@@ -118,6 +118,25 @@ class AnimationViewer(Plotter):
                 self.timer_id = self.timer_callback("create", dt=int(self.dt * 1000))
 
             print(f"Animation {self.animation_status.value}")
+
+        elif key.lower() == "h":
+            # print camera positions and orientations
+            print("--------------------------------")
+            for i in [0, 1, 2]:
+                print(f"Camera {i}")
+                print(f"Position: {self.at(i).camera.GetPosition()}")
+                print(f"Orientation: {self.at(i).camera.GetOrientation()}")
+                print(f"Focal Point: {self.at(i).camera.GetFocalPoint()}")
+                print(f"View Up: {self.at(i).camera.GetViewUp()}")
+                print(f"Clipping Range: {self.at(i).camera.GetClippingRange()}")
+                print("--------------------------------")
+        elif key.lower() == "c":
+            self.at(2).camera.SetPosition([0, 0, 0])
+            self.at(2).camera.SetFocalPoint([0, 0, 1])
+            self.at(2).camera.SetViewUp([0, -1, 0])
+            self.at(2).camera.SetClippingRange([0.01, 0.4])
+            self.at(2).camera.SetViewAngle(29.5138)
+            self.at(2).render()
 
     def load_data(self, input_path: Path):
         data = np.load(str(input_path))
@@ -175,9 +194,14 @@ class AnimationViewer(Plotter):
 
         ## Split 3 - Grid
         self.initial_markers = Points(self.points[0]).color("red", 0.5).ps(10)  # type: ignore
+        self.spheres_list2 = [
+            Sphere(r=0.003, pos=pos).color(colors[i], 0.5)
+            for i, pos in enumerate(self.points[0])
+        ]
+
         center_of_mass = self.initial_markers.center_of_mass()  # type: ignore
         self.grid = Grid(pos=center_of_mass, s=(0.1, 0.1), res=(20, 20)).c("white")  # type: ignore
-        self.at(2).add([self.grid, self.initial_markers])  # type: ignore
+        self.at(2).add([self.grid, self.initial_markers, *self.spheres_list2])  # type: ignore
 
     def loop_func(self, event: Any):
         if self.current_frame_id < self.n_frames:
@@ -200,25 +224,35 @@ class AnimationViewer(Plotter):
 
             self.render()
 
-    # def set_cameras_pose(self):
-    #     camera_origin = np.array([0, 0, 0])
-    #     camera_rotation = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    def set_cameras_pose(self):
 
-    #     # VTK camera parameters
-    #     # right = camera_rotation[:, 0]
-    #     up = camera_rotation[:, 1]
-    #     # forward = camera_rotation[:, 2]
-    #     # In VTK, the camera looks along the negative Z of its local system.
-    #     focal_point = np.array([0, 0, -1])
+        # Hardcode camera poses for all subplots (0, 1, and 2)
+        # Note: self.camera is a list of cameras, one per subplot
 
-    #     # focal_point = camera_origin + forward
-    #     clipping_range = np.array([0.0001, 1])
+        # Camera 0
+        cam0 = self.at(0).camera
+        cam0.SetPosition(
+            0.2999888745800917, -0.00037520128371598606, 0.19202933102637004
+        )
+        cam0.SetFocalPoint(
+            0.002111749821866323, -0.009660705808862965, 0.13705798727262414
+        )
+        cam0.SetViewUp(-0.18303763813677215, 0.06407686372453729, 0.9810154833439375)
+        cam0.SetClippingRange(0.20243262610729204, 0.4208023356710262)
 
-    #     for idx in [0,2]:
-    #         self.at(idx).camera.SetPosition(camera_origin)  # type: ignore
-    #         self.at(idx).camera.SetFocalPoint(focal_point)  # type: ignore
-    #         self.at(idx).camera.SetViewUp(up)  # type: ignore
-    #         self.at(idx).camera.SetClippingRange(clipping_range)  # type: ignore
+        # Camera 1
+        cam1 = self.at(1).camera
+        cam1.SetPosition(649.0318562169138, 444.51338572306537, 2999.062754174594)
+        cam1.SetFocalPoint(649.0318562169138, 444.51338572306537, 0.0)
+        cam1.SetViewUp(0.0, 1.0, 0.0)
+        cam1.SetClippingRange(2809.1564344696108, 3245.349604466564)
+
+        # Camera 2
+        cam2 = self.at(2).camera
+        cam2.SetPosition(0.0, 0.0, -0.1100000000000002)
+        cam2.SetFocalPoint(0.0, 0.0, 1.0)
+        cam2.SetViewUp(0.0, -1.0, 0.0)
+        cam2.SetClippingRange(0.2222342587351801, 0.4122746196627619)
 
     def grid_deformation(self):
 
@@ -240,6 +274,8 @@ class AnimationViewer(Plotter):
             self.grid.points = distort_grid_points  # type: ignore
 
             self.initial_markers.points = self.points[self.current_frame_id]  # type: ignore
+            for i in range(PINS_TO_TRACK):
+                self.spheres_list2[i].pos(self.points[self.current_frame_id, i])  # type: ignore
 
 
 def main1():
