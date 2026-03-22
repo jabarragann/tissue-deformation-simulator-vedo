@@ -20,7 +20,7 @@ class PointCloudPlotter:
         else:
             color = self.colors_used[label]
 
-        self.ax.scatter(data[:, 0], data[:, 1], data[:, 2], c=[color], label=label)
+        self.ax.scatter(data[:, 0], data[:, 1], data[:, 2], c=[color], label=label)  # type: ignore
 
     def draw_lines(self, p1: npt.NDArray[np.float32], p2: npt.NDArray[np.float32]):
         for before, after in zip(p1, p2):
