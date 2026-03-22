@@ -5,7 +5,7 @@ import yaml
 from natsort import natsorted
 from pyprojroot.here import here
 
-from deformation_lib.scripts.deformation_fields.RBF import FullRBF
+from deformation_lib.deformation_fields.RBF import FullRBF
 from deformation_lib.visualization.Plotter_3D import PointCloudPlotter
 
 

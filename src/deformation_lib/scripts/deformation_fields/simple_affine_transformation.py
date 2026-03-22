@@ -8,6 +8,80 @@ from deformation_lib.visualization.Plotter_3D import PointCloudPlotter
 # np.set_printoptions(precision=4, suppress=True)
 
 
+def load_sample_data():
+    """
+    Sample date from tracked pins in video
+    """
+    pts_50_55_0 = np.array(
+        [
+            [6.9, -33.89, 155.13],
+            [53.46, -32.5, 145.04],
+            [37.04, 11.15, 140.47],
+            [7.29, 26.7, 155.13],
+            [-25.92, 10.57, 145.04],
+        ],
+        dtype=np.float32,
+    )
+    pts_50_55_1 = np.array(
+        [
+            [7.22, -32.34, 148.67],
+            [53.66, -32.78, 143.87],
+            [37.22, 10.45, 140.47],
+            [7.67, 27.46, 162.18],
+            [-26.44, 10.92, 147.44],
+        ],
+        dtype=np.float32,
+    )
+
+    pts_50_100_0 = np.array(
+        [
+            [6.9, -33.89, 155.13],
+            [53.46, -32.5, 145.04],
+            [37.04, 11.15, 140.47],
+            [7.29, 26.7, 155.13],
+            [-25.92, 10.57, 145.04],
+        ],
+        dtype=np.float32,
+    )
+    pts_50_100_1 = np.array(
+        [
+            [2.55, -25.73, 149.92],
+            [46.55, -35.0, 146.23],
+            [36.89, 9.34, 145.04],
+            [7.96, 29.72, 148.67],
+            [-24.61, 20.77, 132.15],
+        ],
+        dtype=np.float32,
+    )
+
+    pts_100_150_0 = np.array(
+        [
+            [2.55, -25.73, 149.92],
+            [46.55, -35.0, 146.23],
+            [36.89, 9.34, 145.04],
+            [7.96, 29.72, 148.67],
+            [-24.61, 20.77, 132.15],
+        ],
+        dtype=np.float32,
+    )
+    pts_100_150_1 = np.array(
+        [
+            [1.36, -24.74, 152.48],
+            [39.74, -44.5, 153.79],
+            [36.87, 0.36, 140.47],
+            [16.21, 29.4, 153.79],
+            [-17.58, 28.27, 130.22],
+        ],
+        dtype=np.float32,
+    )
+
+    return [
+        (pts_50_55_0, pts_50_55_1),
+        (pts_50_100_0, pts_50_100_1),
+        (pts_100_150_0, pts_100_150_1),
+    ]
+
+
 def pretty_print(matrix):
     print(
         np.array2string(
@@ -134,15 +208,16 @@ def compare_lstsq_results(X, Y):
     pretty_print(x_vectorized)
 
 
+def unpack_affine(sol):
+    A = np.array([sol[0:3], sol[4:7], sol[8:11]])
+    t = np.array([sol[3], sol[7], sol[11]]).reshape(-1, 1)
+
+    return A, t
+
+
 def test_vectorized_implementation():
 
-    video_path = Path("./data/phantom_demo/video_20_08_15/left.mp4")
-    tracked_points_path = video_path.parent / "tracked_frames" / "3d_points.npz"
-
-    data = np.load(str(tracked_points_path))["arr_0"]
-
-    pts0 = data[50]
-    pts1 = data[100]
+    pts0, pts1 = load_sample_data()[1]
 
     compare_matrices(pts0, pts1)
     print("Matrices are equal")
@@ -151,21 +226,33 @@ def test_vectorized_implementation():
     print("Results are equal")
 
 
-def unpack_affine(sol):
-    A = np.array([sol[0:3], sol[4:7], sol[8:11]])
-    t = np.array([sol[3], sol[7], sol[11]]).reshape(-1, 1)
-
-    return A, t
-
-
-def main():
+def print_data():
     video_path = Path("./data/phantom_demo/video_20_08_15/left.mp4")
     tracked_points_path = video_path.parent / "tracked_frames" / "3d_points.npz"
 
     data = np.load(str(tracked_points_path))["arr_0"]
 
+    print("data from 50 and 55")
     pts0 = data[50]
     pts1 = data[55]
+    pretty_print(pts0)
+    pretty_print(pts1)
+
+    print("data from 50 and 100")
+    pts0 = data[50]
+    pts1 = data[100]
+    pretty_print(pts0)
+    pretty_print(pts1)
+
+    print("data from 100 and 150")
+    pts0 = data[100]
+    pts1 = data[150]
+    pretty_print(pts0)
+    pretty_print(pts1)
+
+
+def main():
+    pts0, pts1 = load_sample_data()[1]
 
     A_mat, B = build_lstsq_matrices_vectorized(pts0, pts1)
     x, residuals, rank, s = np.linalg.lstsq(A_mat, B, rcond=None)
@@ -193,5 +280,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # print_data()
     # test_vectorized_implementation()
     main()

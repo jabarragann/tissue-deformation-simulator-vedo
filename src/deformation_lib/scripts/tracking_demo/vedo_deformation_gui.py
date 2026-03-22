@@ -10,7 +10,7 @@ from numpy import typing as npt
 from vedo import Grid, Image, Plotter, Points
 from vedo.shapes import Sphere, Text2D
 
-from deformation_lib.scripts.deformation_fields.RBF import FullRBF
+from deformation_lib.deformation_fields.RBF import FullRBF
 
 PINS_TO_TRACK = 5
 colors = ["purple", "pink", "yellow", "red", "green"]
