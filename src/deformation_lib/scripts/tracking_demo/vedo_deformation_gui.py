@@ -86,7 +86,7 @@ class AnimationViewer(Plotter):
         self.animation_status = AnimationStatus.PAUSE
 
         kwargs: dict[str, Any] = {
-            "size": (1200, 800),
+            "size": (1916, 666),
             "pos": (1920, 0),
             "title": self.title,
         }
@@ -137,6 +137,8 @@ class AnimationViewer(Plotter):
             self.at(2).camera.SetClippingRange([0.01, 0.4])
             self.at(2).camera.SetViewAngle(29.5138)
             self.at(2).render()
+        elif key.lower() == "g":
+            print(f"Window size {self.window.GetSize()} ")  # type: ignore
 
     def load_data(self, input_path: Path):
         data = np.load(str(input_path))
@@ -170,9 +172,6 @@ class AnimationViewer(Plotter):
             "Frame: 0", pos="top-left", c="white", font="Courier", s=1.2
         )
         self.at(0).add(self.frame_text)  # type: ignore
-
-        ## Add axes to the first subplot
-        self.at(0).show(axes=1)
 
         # Split 2 - Image
         black_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -225,34 +224,40 @@ class AnimationViewer(Plotter):
             self.render()
 
     def set_cameras_pose(self):
-
-        # Hardcode camera poses for all subplots (0, 1, and 2)
-        # Note: self.camera is a list of cameras, one per subplot
-
+        # fmt: off
         # Camera 0
         cam0 = self.at(0).camera
-        cam0.SetPosition(
-            0.2999888745800917, -0.00037520128371598606, 0.19202933102637004
-        )
-        cam0.SetFocalPoint(
-            0.002111749821866323, -0.009660705808862965, 0.13705798727262414
-        )
-        cam0.SetViewUp(-0.18303763813677215, 0.06407686372453729, 0.9810154833439375)
-        cam0.SetClippingRange(0.20243262610729204, 0.4208023356710262)
-
+        cam0.SetPosition(0.24658161000629916, -0.0011930366023919698, 0.19102308777216948)
+        cam0.SetFocalPoint(0.0019791912677067348, -0.009777626557221052, 0.13788993141927075)
+        cam0.SetViewUp(-0.21378672966623002, 0.05467717024840851, 0.97534898434983)
+        cam0.SetClippingRange(0.14459957775087026, 0.37014639201429905)
         # Camera 1
         cam1 = self.at(1).camera
-        cam1.SetPosition(649.0318562169138, 444.51338572306537, 2999.062754174594)
-        cam1.SetFocalPoint(649.0318562169138, 444.51338572306537, 0.0)
+        cam1.SetPosition(713.3395769394505, 490.7322577287704, 2048.4002145854743)
+        cam1.SetFocalPoint(713.3395769394505, 490.7322577287704, 0.0)
         cam1.SetViewUp(0.0, 1.0, 0.0)
-        cam1.SetClippingRange(2809.1564344696108, 3245.349604466564)
-
+        cam1.SetClippingRange(1918.6916429681105, 2216.617447214372)
         # Camera 2
         cam2 = self.at(2).camera
-        cam2.SetPosition(0.0, 0.0, -0.1100000000000002)
-        cam2.SetFocalPoint(0.0, 0.0, 1.0)
+        cam2.SetPosition(0.011143963749165302, -0.0005579948994434529, -0.06875175994781133)
+        cam2.SetFocalPoint(0.011143963749165302, -0.0005579948994434529, 0.14825883507728577)
         cam2.SetViewUp(0.0, -1.0, 0.0)
-        cam2.SetClippingRange(0.2222342587351801, 0.4122746196627619)
+        cam2.SetClippingRange(0.176207764938732, 0.4615800675857036)
+
+        self.cam2_parameters = {
+            "position": (0.011143963749165302, -0.0005579948994434529, -0.06875175994781133),
+            "focal_point": (0.011143963749165302, -0.0005579948994434529, 0.14825883507728577),
+            "viewup": (0.0, -1.0, 0.0),
+            "distance": None,
+            "clipping_range": (0.176207764938732, 0.4615800675857036),
+            "parallel_scale": None,
+            "thickness": None,
+            "view_angle": None,
+            "roll": None,
+        }
+
+        # fmt: on
+        print("Camera poses set.")
 
     def grid_deformation(self):
 
@@ -277,6 +282,17 @@ class AnimationViewer(Plotter):
             for i in range(PINS_TO_TRACK):
                 self.spheres_list2[i].pos(self.points[self.current_frame_id, i])  # type: ignore
 
+    def custom_show(self):
+        ## Add axes to the first subplot
+        self.at(0).show(axes=1)
+
+        # Note:
+        # Not sure why camera 2 are not being set in the set camera function.
+        # The line below is needed to set camera to desired position.
+        self.at(2).show(camera=self.cam2_parameters)
+
+        self.show().interactive().close()
+
 
 def main1():
 
@@ -290,7 +306,9 @@ def main1():
     viewer = AnimationViewer(video_player, tracked_points_path)  # type: ignore
 
     print("Finish setup..")
-    viewer.show().interactive().close()  # type: ignore
+
+    viewer.custom_show()
+    # viewer.show().interactive().close()  # type: ignore
 
 
 if __name__ == "__main__":
