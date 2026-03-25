@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 import cv2
 import numpy as np
 from numpy import typing as npt
-from vedo import Grid, Image, Plotter, Points
+from vedo import Grid, Image, Plotter, Points, Video
 from vedo.shapes import Sphere, Text2D
 
 from deformation_lib.deformation_fields.RBF import FullRBF
@@ -77,8 +77,15 @@ class VideoPlayer:
 
 
 class AnimationViewer(Plotter):
-    @time_init
-    def __init__(self, video_player: VideoPlayer, tracked_points_path: Path):
+    # @time_init
+    def __init__(
+        self,
+        rbf_sigma: float,
+        video_player: VideoPlayer,
+        tracked_points_path: Path,
+        record_video: bool = False,
+        video_output_path: Optional[Path] = None,
+    ):
 
         self.title = "3D Point Displacement"
         self.bg = "black"
@@ -93,6 +100,7 @@ class AnimationViewer(Plotter):
         kwargs.update({"bg": "black", "bg2": "black"})
 
         super().__init__(shape=(1, 3), sharecam=False, axes=1, **kwargs)
+        self.rbf_sigma = rbf_sigma
         self.interactor.RemoveObservers("KeyPressEvent")  # type: ignore
         self.add_callback("KeyPress", self.key_press_cb)  # type: ignore
 
@@ -103,6 +111,11 @@ class AnimationViewer(Plotter):
         self.set_cameras_pose()
 
         self.init_animation()
+
+        self.video = None
+        if record_video:
+            assert video_output_path is not None
+            self.video = Video(str(video_output_path), fps=15)
 
     def key_press_cb(self, evt: Any):
         """Handle keyboard events"""
@@ -223,6 +236,9 @@ class AnimationViewer(Plotter):
 
             self.render()
 
+            if self.video is not None:
+                self.video.add_frame()
+
     def set_cameras_pose(self):
         # fmt: off
         # Camera 0
@@ -245,11 +261,11 @@ class AnimationViewer(Plotter):
         cam2.SetClippingRange(0.176207764938732, 0.4615800675857036)
 
         self.cam2_parameters = {
-            "position": (0.011143963749165302, -0.0005579948994434529, -0.06875175994781133),
+            "position": (0.011143963749165302, -0.0005579948994434529, -0.09875175994781133),
             "focal_point": (0.011143963749165302, -0.0005579948994434529, 0.14825883507728577),
             "viewup": (0.0, -1.0, 0.0),
             "distance": None,
-            "clipping_range": (0.176207764938732, 0.4615800675857036),
+            "clipping_range": (0.106207764938732, 0.5615800675857036),
             "parallel_scale": None,
             "thickness": None,
             "view_angle": None,
@@ -261,7 +277,7 @@ class AnimationViewer(Plotter):
 
     def grid_deformation(self):
 
-        displacement_field = FullRBF(sigma=0.01)
+        displacement_field = FullRBF(sigma=self.rbf_sigma)
         if self.current_frame_id > 0:
             displacement = (
                 self.points[self.current_frame_id]
@@ -285,13 +301,18 @@ class AnimationViewer(Plotter):
     def custom_show(self):
         ## Add axes to the first subplot
         self.at(0).show(axes=1)
+        self.at(1).show(axes=0, resetcam=False)
 
         # Note:
         # Not sure why camera 2 are not being set in the set camera function.
         # The line below is needed to set camera to desired position.
-        self.at(2).show(camera=self.cam2_parameters)
+        self.at(2).show(camera=self.cam2_parameters, resetcam=False, axes=1)
+        self.at(2).camera.SetClippingRange(self.cam2_parameters["clipping_range"])
 
-        self.show().interactive().close()
+        self.interactive().close()
+
+        if self.video is not None:
+            self.video.close()
 
 
 def main1():
@@ -299,11 +320,20 @@ def main1():
     video_path = Path("./data/phantom_demo/video_20_08_15/left.mp4")
     tracked_points_path = video_path.parent / "tracked_frames" / "3d_points.npz"
 
+    sigma = 0.01
+    video_output_path = Path(f"./temp/rbf_sigma{sigma}.mp4")
+
     video_player = VideoPlayer(
         video_path=video_path,
         start_frame=178,
     )
-    viewer = AnimationViewer(video_player, tracked_points_path)  # type: ignore
+    viewer = AnimationViewer(
+        rbf_sigma=sigma,
+        video_player=video_player,
+        tracked_points_path=tracked_points_path,
+        record_video=True,
+        video_output_path=video_output_path,
+    )  # type: ignore
 
     print("Finish setup..")
 
